@@ -1,0 +1,109 @@
+name: Build and publish validated SIF
+
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/singularity-r460
+    paths:
+      - r460-spatial-singlecell-ubuntu24.def
+      - .github/workflows/build-sif.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: r460-sif-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APPTAINER_VERSION: 1.5.2
+  DEFINITION: r460-spatial-singlecell-ubuntu24.def
+  IMAGE: r460-spatial-singlecell-ubuntu24-amd64.sif
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+
+    steps:
+      - name: Check out build inputs
+        uses: actions/checkout@v4
+
+      - name: Report and prepare build disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h
+
+      - name: Install pinned Apptainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          curl -fL --retry 5 --retry-delay 5 \
+            -o "$RUNNER_TEMP/apptainer.deb" \
+            "https://github.com/apptainer/apptainer/releases/download/v${APPTAINER_VERSION}/apptainer_${APPTAINER_VERSION}_amd64.deb"
+          printf '%s  %s\n' \
+            'b5ea4ddbb7db2bfd396b4e64adaedb75d990fc7efd851189472899a1bd521d89' \
+            "$RUNNER_TEMP/apptainer.deb" | sha256sum -c -
+          sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
+          apptainer version | grep -F "$APPTAINER_VERSION"
+
+      - name: Build SIF as root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/apptainer-cache" "$RUNNER_TEMP/apptainer-tmp"
+          source_date_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          sudo env \
+            APPTAINER_CACHEDIR="$RUNNER_TEMP/apptainer-cache" \
+            APPTAINER_TMPDIR="$RUNNER_TEMP/apptainer-tmp" \
+            SOURCE_DATE_EPOCH="$source_date_epoch" \
+            apptainer build --force "$IMAGE" "$DEFINITION"
+          sudo chown "$USER:$USER" "$IMAGE"
+          ls -lh "$IMAGE"
+
+      - name: Validate as an ordinary user
+        shell: bash
+        run: |
+          set -euo pipefail
+          apptainer test --cleanenv "$IMAGE" |& tee validation.log
+          apptainer inspect "$IMAGE" > image-inspect.txt
+          apptainer sif list "$IMAGE" >> image-inspect.txt
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf "$RUNNER_TEMP/apptainer-cache" "$RUNNER_TEMP/apptainer-tmp"
+          mkdir -p dist
+          sha256sum "$IMAGE" > "dist/$IMAGE.sha256"
+          cp "$DEFINITION" validation.log image-inspect.txt README.md dist/
+
+          release_limit=$((1900 * 1024 * 1024))
+          if (( $(stat -c %s "$IMAGE") <= release_limit )); then
+            mv "$IMAGE" dist/
+          else
+            split -b 1900M -d -a 3 "$IMAGE" "dist/$IMAGE.part-"
+            (
+              cd dist
+              sha256sum "$IMAGE".part-* > "$IMAGE.parts.sha256"
+            )
+          fi
+
+          ls -lh dist
+
+      - name: Publish immutable build release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="r4.6.0-seurat5.5.0-build-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "$tag" \
+            --notes "Validated amd64 Apptainer/Singularity image. If the SIF is split, download every part, concatenate them in lexical order, and verify the full-image SHA-256 file."

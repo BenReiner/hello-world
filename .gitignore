@@ -1,0 +1,6 @@
+*.sif
+*.sif.part-*
+*.sif.sha256
+validation.log
+image-inspect.txt
+dist/
