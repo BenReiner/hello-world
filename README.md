@@ -40,7 +40,8 @@ The image also records complete Debian and R package manifests under
 - PMACS modules describe software on the host. They must not be loaded into this
   self-contained image. Ubuntu 24.04 supplies GCC 12.4, GFortran 13.3, HDF5
   1.10.10, Python 3.12, and FFTW 3.3.10. These satisfy the stated R stack; only
-  FFTW is the exact PMACS module version.
+  FFTW is the exact PMACS module version. Both `python3` and the compatibility
+  command `python` invoke the container's Python 3 interpreter.
 - `libicu74`, `gcc-12`, `g++-12`, `gfortran-13`,
   `libgfortran-13-dev`, and the remaining compatible development packages from
   the request are installed from Ubuntu 24.04. The obsolete
