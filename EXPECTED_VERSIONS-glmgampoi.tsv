@@ -1,0 +1,17 @@
+component	version
+ubuntu	24.04 LTS
+r	4.6.0
+cran_snapshot	2026-06-01
+bioconductor	3.23
+glmGamPoi	1.24.0
+glmGamPoi_source_sha256	faf17f91e8e84a6cb455c7588df352f24da2f5a07e7d4ab8a3b654889a1e7492
+tidyverse	2.0.0
+sf	1.1-1
+arrow	24.0.0
+hdf5r	1.3.12
+ggplot2	4.0.3
+Seurat	5.5.0
+SeuratObject	5.4.0
+sp	2.2-1
+dplyr	1.2.1
+future	1.70.0
