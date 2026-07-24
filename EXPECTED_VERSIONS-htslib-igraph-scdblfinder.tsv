@@ -8,10 +8,11 @@ libigraph-dev	0.10.10+ds-1.1build2
 libigraph_runtime_package	libigraph3t64 0.10.10+ds-1.1build2
 libigraph_runtime_abi	libigraph3 / libigraph.so.3
 system_htslib	1.19
-libhts-dev	1.19+ds-1.1build3
+libhts-dev	1.19+ds-1.1build3+codex1
+libhts-dev_original_deb_sha256	71ec76872312d83494f0f5b53ae40eb79579c4972790c1cec74e08aa0345851f
 libhts_runtime_package	libhts3t64 1.19+ds-1.1build3
 libhts_runtime_abi	libhts3 / libhts.so.3
-libcurl_development_backend	libcurl4-gnutls-dev
+libcurl_development_backend	libcurl4-openssl-dev
 Rhtslib	3.8.0
 Rhtslib_bundled_htslib	1.18
 Rhtslib_source_sha256	e89153bbac580adc2e988a095ce39c26e28cdf23b9a337988d18f66bc3b1eded

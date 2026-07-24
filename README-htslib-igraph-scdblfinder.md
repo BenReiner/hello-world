@@ -24,7 +24,7 @@ included.
 | CRAN snapshot | Posit Package Manager, 2026-06-01 |
 | Bioconductor | 3.23, the release for R 4.6 |
 | System igraph | 0.10.10 (`libigraph-dev` and `libigraph3t64`) |
-| System HTSlib | 1.19 (`libhts-dev` and `libhts3t64`) |
+| System HTSlib | 1.19 (`libhts-dev` local compatible repack and official `libhts3t64`) |
 | Rhtslib | 3.8.0, source tarball pinned by SHA-256 |
 | Rhtslib private HTSlib | 1.18 |
 | scDblFinder | 1.26.7, source tarball pinned by SHA-256 |
@@ -57,11 +57,19 @@ The corresponding development packages retain their expected names:
 `libigraph-dev` and `libhts-dev`.
 
 Ubuntu's official `libhts-dev` package hard-depends on
-`libcurl4-gnutls-dev`, which conflicts with the prior image's
-`libcurl4-openssl-dev`. This image uses the official supported
-`libhts-dev` package and therefore changes only the libcurl development
-backend to GnuTLS. `libssl-dev`, R's libcurl capability, and every prior
-analytical package remain present and are functionally retested.
+`libcurl4-gnutls-dev`, while Apache Arrow 24's `libarrow-dev` package
+hard-depends on the mutually exclusive `libcurl4-openssl-dev`. To retain
+every package from the prior image, this recipe downloads Noble's exact
+`libhts-dev` 1.19 binary package, verifies its SHA-256, and creates a
+transparent local Debian repack named
+`1.19+ds-1.1build3+codex1`. The headers, static library, linker symlink,
+and `pkg-config` data are unchanged; only the development-package
+dependency is changed to `libcurl4-openssl-dev`.
+
+The official `libhts3t64` runtime package remains unmodified. Its
+GnuTLS-flavored libcurl runtime can coexist with Arrow's OpenSSL-flavored
+runtime. `dpkg --audit`, compilation/link tests, R's libcurl capability,
+and every prior analytical package are all retested.
 
 ## Two intentional HTSlib installations
 
@@ -86,7 +94,9 @@ round trip through the private `Rhtslib` HTSlib 1.18 build.
 - Bioconductor packages are resolved only from release 3.23.
 - `update = FALSE` prevents the Bioconductor installation from upgrading the
   original pinned CRAN stack.
-- Ubuntu igraph and HTSlib packages are version-gated during the build.
+- Ubuntu igraph and HTSlib packages are version-gated during the build;
+  the original `libhts-dev` Debian payload is pinned by SHA-256 before
+  its documented dependency-only repack.
 - Apache Arrow C++ and R `arrow` remain pinned to 24.0.0.
 - Compilation does not use `-march=native`, preserving portability across
   x86_64 PMACS compute nodes.
@@ -178,8 +188,7 @@ It additionally validates:
 - an `Rsamtools` SAM-to-BAM round trip;
 - `scDblFinder` clustering, artificial-doublet generation, xgboost scoring,
   thresholding, and output fields on deterministic mock data; and
-- R's libcurl capability after the required GnuTLS development-backend
-  substitution.
+- R's libcurl capability with the preserved OpenSSL development backend.
 
 ## Primary upstream references
 

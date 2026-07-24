@@ -56,7 +56,7 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         libblas-dev \
         libbz2-dev \
         libcairo2-dev \
-        libcurl4-gnutls-dev \
+        libcurl4-openssl-dev \
         libdeflate-dev \
         libfftw3-dev \
         libfontconfig1-dev \
@@ -71,7 +71,6 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         libgsl-dev \
         libharfbuzz-dev \
         libhdf5-dev \
-        libhts-dev=1.19+ds-1.1build3 \
         libhts3t64=1.19+ds-1.1build3 \
         libicu-dev \
         libicu74 \
@@ -125,17 +124,58 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         test "$(dpkg-query -W -f='${Version}' "$package")" = '24.0.0-1'
     done
 
+    mkdir -p /opt/container-metadata
+    curl -fL --retry 5 --retry-delay 5 \
+        -o /tmp/libhts-dev_1.19+ds-1.1build3_amd64.deb \
+        https://archive.ubuntu.com/ubuntu/pool/universe/h/htslib/libhts-dev_1.19+ds-1.1build3_amd64.deb
+    printf '%s  %s\n' \
+        '71ec76872312d83494f0f5b53ae40eb79579c4972790c1cec74e08aa0345851f' \
+        '/tmp/libhts-dev_1.19+ds-1.1build3_amd64.deb' | tee \
+        /opt/container-metadata/libhts-dev-original.sha256 | sha256sum -c -
+
+    rm -rf /tmp/libhts-dev-repack
+    dpkg-deb -R \
+        /tmp/libhts-dev_1.19+ds-1.1build3_amd64.deb \
+        /tmp/libhts-dev-repack
+    sed -i \
+        's/^Version: 1\.19+ds-1\.1build3$/Version: 1.19+ds-1.1build3+codex1/' \
+        /tmp/libhts-dev-repack/DEBIAN/control
+    sed -i \
+        's/libcurl4-gnutls-dev/libcurl4-openssl-dev/' \
+        /tmp/libhts-dev-repack/DEBIAN/control
+    grep -Fx \
+        'Version: 1.19+ds-1.1build3+codex1' \
+        /tmp/libhts-dev-repack/DEBIAN/control
+    grep '^Depends:' /tmp/libhts-dev-repack/DEBIAN/control \
+        | grep -F 'libcurl4-openssl-dev'
+    if grep '^Depends:' /tmp/libhts-dev-repack/DEBIAN/control \
+        | grep -F 'libcurl4-gnutls-dev'
+    then
+        exit 1
+    fi
+    dpkg-deb --root-owner-group --build \
+        /tmp/libhts-dev-repack \
+        /tmp/libhts-dev_1.19+ds-1.1build3+codex1_amd64.deb
+    apt-get install -y --no-install-recommends \
+        /tmp/libhts-dev_1.19+ds-1.1build3+codex1_amd64.deb
+    printf '%s\n' \
+        'Ubuntu libhts-dev 1.19+ds-1.1build3 was repackaged as' \
+        '1.19+ds-1.1build3+codex1. Only its development dependency was' \
+        'changed from libcurl4-gnutls-dev to libcurl4-openssl-dev so it' \
+        'can coexist with Apache Arrow 24.0.0 development packages.' \
+        > /opt/container-metadata/libhts-dev-local-repack.txt
+
     test "$(dpkg-query -W -f='${Version}' libigraph-dev)" \
         = '0.10.10+ds-1.1build2'
     test "$(dpkg-query -W -f='${Version}' libigraph3t64)" \
         = '0.10.10+ds-1.1build2'
     test "$(dpkg-query -W -f='${Version}' libhts-dev)" \
-        = '1.19+ds-1.1build3'
+        = '1.19+ds-1.1build3+codex1'
     test "$(dpkg-query -W -f='${Version}' libhts3t64)" \
         = '1.19+ds-1.1build3'
-    dpkg-query -W -f='${Status}\n' libcurl4-gnutls-dev \
+    dpkg-query -W -f='${Status}\n' libcurl4-openssl-dev \
         | grep -Fx 'install ok installed'
-    dpkg --audit
+    test -z "$(dpkg --audit)"
 
     mkdir -p \
         /opt/src \
@@ -370,12 +410,12 @@ RSCRIPT
 
     require_package_version libigraph-dev '0.10.10+ds-1.1build2'
     require_package_version libigraph3t64 '0.10.10+ds-1.1build2'
-    require_package_version libhts-dev '1.19+ds-1.1build3'
+    require_package_version libhts-dev '1.19+ds-1.1build3+codex1'
     require_package_version libhts3t64 '1.19+ds-1.1build3'
-    dpkg --audit
+    test -z "$(dpkg --audit)"
 
     for package in \
-        libcurl4-gnutls-dev \
+        libcurl4-openssl-dev \
         libdeflate-dev \
         libglpk-dev \
         libxml2-dev
@@ -832,7 +872,7 @@ RSCRIPT
         printf 'libhts-runtime-deb: '
         dpkg-query -W -f='${Version}\n' libhts3t64
         printf 'libcurl-development-backend: '
-        dpkg-query -W -f='${binary:Package} ${Version}\n' libcurl4-gnutls-dev
+        dpkg-query -W -f='${binary:Package} ${Version}\n' libcurl4-openssl-dev
     } > /opt/container-metadata/toolchain-versions.txt
 
     /opt/container/validate-system-libs.sh \
@@ -887,6 +927,11 @@ RSCRIPT
     Ubuntu 24.04 names the runtime packages libigraph3t64 and
     libhts3t64; these provide the requested libigraph3 and libhts3
     ABIs and the libigraph.so.3 and libhts.so.3 shared libraries.
+
+    To coexist with Arrow 24's OpenSSL curl development files, the
+    libhts-dev package is a checksum-pinned, dependency-only local
+    repack of Ubuntu's exact 1.19 development payload. System HTSlib
+    compile, link, runtime, package-consistency, and ABI tests all pass.
 
     Rhtslib contains a separate private HTSlib 1.18 library for R
     packages. The system HTSlib 1.19 and Rhtslib HTSlib 1.18 have both
