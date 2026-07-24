@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-definition="${1:-r460-spatial-singlecell-ubuntu24.def}"
-image="${2:-r460-spatial-singlecell-ubuntu24-amd64.sif}"
+definition="${1:-r460-spatial-singlecell-htslib-igraph-scdblfinder-ubuntu24.def}"
+image="${2:-r460-spatial-singlecell-htslib-igraph-scdblfinder-ubuntu24-amd64.sif}"
 
 command -v singularity >/dev/null 2>&1 || {
   printf 'ERROR: singularity is not on PATH. Load the PMACS Singularity module first.\n' >&2

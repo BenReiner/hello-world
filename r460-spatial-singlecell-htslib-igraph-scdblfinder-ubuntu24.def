@@ -2,9 +2,9 @@ Bootstrap: docker
 From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 
 %labels
-    org.opencontainers.image.title "R spatial, single-cell, and Gamma-Poisson analysis"
-    org.opencontainers.image.description "Ubuntu 24.04 LTS, R 4.6.0, Seurat 5.5.0, glmGamPoi 1.24.0, Arrow 24.0.0, and pinned dependencies"
-    org.opencontainers.image.version "r4.6.0-seurat5.5.0-glmGamPoi1.24.0"
+    org.opencontainers.image.title "R spatial, single-cell, doublet, graph, and HTS analysis"
+    org.opencontainers.image.description "Ubuntu 24.04 LTS, R 4.6.0, Seurat 5.5.0, glmGamPoi 1.24.0, scDblFinder 1.26.7, Rhtslib 3.8.0, system igraph 0.10.10, system HTSlib 1.19, Arrow 24.0.0, and pinned dependencies"
+    org.opencontainers.image.version "r4.6.0-seurat5.5.0-glmGamPoi1.24.0-Rhtslib3.8.0-scDblFinder1.26.7"
     org.opencontainers.image.base.name "docker.io/library/ubuntu:24.04"
     org.opencontainers.image.base.digest "sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
     org.opencontainers.image.architecture "amd64"
@@ -12,6 +12,10 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
     org.r-project.cran-snapshot "2026-06-01"
     org.bioconductor.version "3.23"
     org.bioconductor.glmGamPoi.version "1.24.0"
+    org.bioconductor.Rhtslib.version "3.8.0"
+    org.bioconductor.scDblFinder.version "1.26.7"
+    org.system.igraph.version "0.10.10"
+    org.system.htslib.version "1.19"
 
 %post
     set -eu
@@ -52,7 +56,8 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         libblas-dev \
         libbz2-dev \
         libcairo2-dev \
-        libcurl4-openssl-dev \
+        libcurl4-gnutls-dev \
+        libdeflate-dev \
         libfftw3-dev \
         libfontconfig1-dev \
         libfreetype-dev \
@@ -66,8 +71,12 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         libgsl-dev \
         libharfbuzz-dev \
         libhdf5-dev \
+        libhts-dev=1.19+ds-1.1build3 \
+        libhts3t64=1.19+ds-1.1build3 \
         libicu-dev \
         libicu74 \
+        libigraph-dev=0.10.10+ds-1.1build2 \
+        libigraph3t64=0.10.10+ds-1.1build2 \
         libjpeg-dev \
         liblapack-dev \
         liblzma-dev \
@@ -116,6 +125,18 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         test "$(dpkg-query -W -f='${Version}' "$package")" = '24.0.0-1'
     done
 
+    test "$(dpkg-query -W -f='${Version}' libigraph-dev)" \
+        = '0.10.10+ds-1.1build2'
+    test "$(dpkg-query -W -f='${Version}' libigraph3t64)" \
+        = '0.10.10+ds-1.1build2'
+    test "$(dpkg-query -W -f='${Version}' libhts-dev)" \
+        = '1.19+ds-1.1build3'
+    test "$(dpkg-query -W -f='${Version}' libhts3t64)" \
+        = '1.19+ds-1.1build3'
+    dpkg-query -W -f='${Status}\n' libcurl4-gnutls-dev \
+        | grep -Fx 'install ok installed'
+    dpkg --audit
+
     mkdir -p \
         /opt/src \
         /opt/R/4.6.0 \
@@ -139,6 +160,22 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         'faf17f91e8e84a6cb455c7588df352f24da2f5a07e7d4ab8a3b654889a1e7492' \
         'glmGamPoi_1.24.0.tar.gz' | tee \
         /opt/container-metadata/glmGamPoi-source.sha256 | sha256sum -c -
+
+    curl -fL --retry 5 --retry-delay 5 \
+        -o Rhtslib_3.8.0.tar.gz \
+        https://bioconductor.org/packages/3.23/bioc/src/contrib/Rhtslib_3.8.0.tar.gz
+    printf '%s  %s\n' \
+        'e89153bbac580adc2e988a095ce39c26e28cdf23b9a337988d18f66bc3b1eded' \
+        'Rhtslib_3.8.0.tar.gz' | tee \
+        /opt/container-metadata/Rhtslib-source.sha256 | sha256sum -c -
+
+    curl -fL --retry 5 --retry-delay 5 \
+        -o scDblFinder_1.26.7.tar.gz \
+        https://bioconductor.org/packages/3.23/bioc/src/contrib/scDblFinder_1.26.7.tar.gz
+    printf '%s  %s\n' \
+        '429b753d97cceac442e9435a773732f8c068eed45518b6ce75b6f944d9aee059' \
+        'scDblFinder_1.26.7.tar.gz' | tee \
+        /opt/container-metadata/scDblFinder-source.sha256 | sha256sum -c -
 
     cd /opt/src/R-4.6.0
     CC=gcc-12 \
@@ -221,8 +258,17 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
     bioc_repos[["CRAN"]] <- cran_repo
     options(repos = bioc_repos)
 
+    install.packages(
+      "/opt/src/Rhtslib_3.8.0.tar.gz",
+      lib = lib,
+      repos = NULL,
+      type = "source",
+      dependencies = FALSE,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
     BiocManager::install(
-      "glmGamPoi",
+      c("glmGamPoi", "scDblFinder"),
       lib = lib,
       version = "3.23",
       ask = FALSE,
@@ -242,6 +288,15 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
       INSTALL_opts = c("--no-multiarch", "--clean")
     )
 
+    install.packages(
+      "/opt/src/scDblFinder_1.26.7.tar.gz",
+      lib = lib,
+      repos = NULL,
+      type = "source",
+      dependencies = FALSE,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
     expected <- c(
       tidyverse = "2.0.0",
       sf = "1.1-1",
@@ -253,7 +308,10 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
       sp = "2.2-1",
       dplyr = "1.2.1",
       future = "1.70.0",
-      glmGamPoi = "1.24.0"
+      glmGamPoi = "1.24.0",
+      Rhtslib = "3.8.0",
+      scDblFinder = "1.26.7",
+      igraph = "2.3.2"
     )
 
     stopifnot(
@@ -299,6 +357,96 @@ RSCRIPT
     export MAKEFLAGS=-j2
     /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/install-r-packages.R
 
+    cat > /opt/container/validate-system-libs.sh <<'SHELLSCRIPT'
+    #!/bin/sh
+    set -eu
+
+    require_package_version() {
+        package="$1"
+        expected="$2"
+        actual="$(dpkg-query -W -f='${Version}' "$package")"
+        test "$actual" = "$expected"
+    }
+
+    require_package_version libigraph-dev '0.10.10+ds-1.1build2'
+    require_package_version libigraph3t64 '0.10.10+ds-1.1build2'
+    require_package_version libhts-dev '1.19+ds-1.1build3'
+    require_package_version libhts3t64 '1.19+ds-1.1build3'
+    dpkg --audit
+
+    for package in \
+        libcurl4-gnutls-dev \
+        libdeflate-dev \
+        libglpk-dev \
+        libxml2-dev
+    do
+        dpkg-query -W -f='${Status}\n' "$package" \
+            | grep -Fx 'install ok installed' >/dev/null
+    done
+
+    test "$(pkg-config --modversion igraph)" = '0.10.10'
+    test "$(pkg-config --modversion htslib)" = '1.19'
+    test -f "$(pkg-config --variable=includedir igraph)/igraph/igraph.h"
+    test -f "$(pkg-config --variable=includedir htslib)/htslib/hts.h"
+
+    test_dir="$(mktemp -d)"
+    trap 'rm -rf "$test_dir"' EXIT HUP INT TERM
+
+    cat > "$test_dir/igraph-smoke.c" <<'CSOURCE'
+    #include <igraph/igraph.h>
+
+    int main(void)
+    {
+        igraph_t graph;
+        if (igraph_ring(&graph, 5, IGRAPH_UNDIRECTED, 0, 1) != IGRAPH_SUCCESS)
+            return 1;
+        if (igraph_vcount(&graph) != 5 || igraph_ecount(&graph) != 5) {
+            igraph_destroy(&graph);
+            return 2;
+        }
+        igraph_destroy(&graph);
+        return 0;
+    }
+CSOURCE
+
+    gcc-12 -O2 -pipe \
+        "$test_dir/igraph-smoke.c" \
+        $(pkg-config --cflags --libs igraph) \
+        -o "$test_dir/igraph-smoke"
+    "$test_dir/igraph-smoke"
+    ldd "$test_dir/igraph-smoke" | grep -F 'libigraph.so.3' >/dev/null
+    if ldd "$test_dir/igraph-smoke" | grep -F 'not found'; then
+        exit 1
+    fi
+
+    cat > "$test_dir/htslib-smoke.c" <<'CSOURCE'
+    #include <htslib/hts.h>
+    #include <stdio.h>
+    #include <string.h>
+
+    int main(void)
+    {
+        const char *version = hts_version();
+        puts(version);
+        return strcmp(version, "1.19") != 0;
+    }
+CSOURCE
+
+    gcc-12 -O2 -pipe \
+        "$test_dir/htslib-smoke.c" \
+        $(pkg-config --cflags --libs htslib) \
+        -o "$test_dir/htslib-smoke"
+    "$test_dir/htslib-smoke"
+    ldd "$test_dir/htslib-smoke" | grep -F 'libhts.so.3' >/dev/null
+    if ldd "$test_dir/htslib-smoke" | grep -F 'not found'; then
+        exit 1
+    fi
+
+    printf '%s\n' \
+        'System igraph 0.10.10 compile/link/runtime check passed.' \
+        'System HTSlib 1.19 compile/link/runtime check passed.'
+SHELLSCRIPT
+
     cat > /opt/container/validate.R <<'RSCRIPT'
     options(warn = 1)
     .libPaths(c("/opt/R/site-library", .libPaths()))
@@ -314,7 +462,10 @@ RSCRIPT
       sp = "2.2-1",
       dplyr = "1.2.1",
       future = "1.70.0",
-      glmGamPoi = "1.24.0"
+      glmGamPoi = "1.24.0",
+      Rhtslib = "3.8.0",
+      scDblFinder = "1.26.7",
+      igraph = "2.3.2"
     )
 
     stopifnot(
@@ -335,8 +486,13 @@ RSCRIPT
       library(future)
       library(dplyr)
       library(glmGamPoi)
+      library(Rhtslib)
+      library(scDblFinder)
       library(Matrix)
       library(HDF5Array)
+      library(BiocParallel)
+      library(Rsamtools)
+      library(igraph)
     })
 
     point <- sf::st_sfc(sf::st_point(c(-75, 40)), crs = 4326)
@@ -506,6 +662,89 @@ RSCRIPT
       ncol(vst_fit$y) == 80
     )
 
+    stopifnot(isTRUE(capabilities("libcurl")))
+    curl_info <- curl::curl_version()
+    stopifnot(
+      nzchar(curl_info$version),
+      nzchar(curl_info$ssl_version)
+    )
+
+    r_graph <- igraph::make_ring(5, directed = FALSE)
+    stopifnot(
+      igraph::vcount(r_graph) == 5,
+      igraph::ecount(r_graph) == 5,
+      igraph::is_connected(r_graph)
+    )
+
+    bundled_htslib_version <- .Call(
+      "Rhtslib_htslib_version",
+      PACKAGE = "Rhtslib"
+    )
+    rhtslib_include <- system.file("include", package = "Rhtslib")
+    rhtslib_usrlib <- system.file("usrlib", package = "Rhtslib")
+    stopifnot(
+      identical(bundled_htslib_version, "1.18"),
+      file.exists(file.path(rhtslib_include, "htslib", "hts.h")),
+      file.exists(file.path(rhtslib_usrlib, "libhts.a")),
+      file.exists(file.path(rhtslib_usrlib, "libhts.so"))
+    )
+
+    sam_file <- tempfile(fileext = ".sam")
+    writeLines(
+      c(
+        "@HD\tVN:1.6\tSO:unsorted",
+        "@SQ\tSN:chr1\tLN:100",
+        "read1\t0\tchr1\t1\t60\t4M\t*\t0\t0\tACGT\tIIII"
+      ),
+      sam_file
+    )
+    bam_file <- Rsamtools::asBam(
+      sam_file,
+      destination = tempfile("rhtslib-smoke"),
+      overwrite = TRUE
+    )
+    bam_count <- Rsamtools::countBam(bam_file)
+    bam_header <- Rsamtools::scanBamHeader(bam_file)
+    stopifnot(
+      identical(as.integer(bam_count$records), 1L),
+      "chr1" %in% names(bam_header[[1]]$targets)
+    )
+    unlink(c(sam_file, bam_file, paste0(bam_file, ".bai")))
+
+    set.seed(123)
+    doublet_sce <- scDblFinder::mockDoubletSCE(
+      ncells = c(A = 100L, B = 200L, C = 150L, D = 100L),
+      ngenes = 250L,
+      dbl.rate = 0.10
+    )
+    doublet_sce$test_cluster <- scDblFinder::fastcluster(
+      doublet_sce,
+      nfeatures = 100L,
+      verbose = FALSE
+    )
+    doublet_sce <- scDblFinder::scDblFinder(
+      doublet_sce,
+      clusters = "test_cluster",
+      artificialDoublets = 250L,
+      dbr = 0.10,
+      verbose = FALSE,
+      BPPARAM = BiocParallel::SerialParam(RNGseed = 123)
+    )
+    doublet_score <- doublet_sce$scDblFinder.score
+    doublet_call <- as.character(doublet_sce$scDblFinder.class)
+    doublet_truth <- as.character(doublet_sce$type)
+    doublet_accuracy <- mean(doublet_call == doublet_truth)
+    stopifnot(
+      length(doublet_score) == ncol(doublet_sce),
+      all(is.finite(doublet_score)),
+      all(doublet_score >= 0 & doublet_score <= 1),
+      all(doublet_call %in% c("singlet", "doublet")),
+      all(c("singlet", "doublet") %in% doublet_call),
+      doublet_accuracy > 0.80,
+      unname(median(doublet_score[doublet_truth == "doublet"])) >
+        unname(median(doublet_score[doublet_truth == "singlet"]))
+    )
+
     cat("Validated OS:\n")
     cat(readLines("/etc/os-release"), sep = "\n")
     cat("\nValidated R, Bioconductor, and top-level package versions:\n")
@@ -518,10 +757,23 @@ RSCRIPT
     cat("\nArrow build information:\n")
     print(arrow::arrow_info())
     cat("\nglmGamPoi dense, sparse, HDF5-backed, and sctransform checks passed.\n")
+    cat("\nSystem-compatible R libcurl backend:", curl_info$ssl_version, "\n")
+    cat("R igraph graph operation passed.\n")
+    cat("Rhtslib bundled HTSlib version:", bundled_htslib_version, "\n")
+    cat("Rsamtools SAM-to-BAM round-trip passed.\n")
+    cat(
+      "scDblFinder functional validation passed; accuracy=",
+      format(doublet_accuracy, digits = 4),
+      "\n",
+      sep = ""
+    )
     cat("\nAll container validation checks passed.\n")
 RSCRIPT
 
-    chmod 0555 /opt/container/install-r-packages.R /opt/container/validate.R
+    chmod 0555 \
+        /opt/container/install-r-packages.R \
+        /opt/container/validate-system-libs.sh \
+        /opt/container/validate.R
 
     dpkg-query -W -f='${binary:Package}\t${Version}\n' | sort \
         > /opt/container-metadata/debian-packages.tsv
@@ -533,6 +785,18 @@ RSCRIPT
         printf 'glmGamPoi: '
         Rscript --vanilla -e \
             'cat(utils::packageDescription("glmGamPoi", fields="Version"), "\n")'
+        printf 'Rhtslib: '
+        Rscript --vanilla -e \
+            'cat(utils::packageDescription("Rhtslib", fields="Version"), "\n")'
+        printf 'Rhtslib-bundled-htslib: '
+        Rscript --vanilla -e \
+            'cat(.Call("Rhtslib_htslib_version", PACKAGE="Rhtslib"), "\n")'
+        printf 'scDblFinder: '
+        Rscript --vanilla -e \
+            'cat(utils::packageDescription("scDblFinder", fields="Version"), "\n")'
+        printf 'r-igraph: '
+        Rscript --vanilla -e \
+            'cat(utils::packageDescription("igraph", fields="Version"), "\n")'
         printf 'gcc: '
         gcc-12 --version | head -n 1
         printf 'g++: '
@@ -555,7 +819,24 @@ RSCRIPT
         geos-config --version
         printf 'proj: '
         pkg-config --modversion proj
+        printf 'system-igraph: '
+        pkg-config --modversion igraph
+        printf 'system-htslib: '
+        pkg-config --modversion htslib
+        printf 'libigraph-dev-deb: '
+        dpkg-query -W -f='${Version}\n' libigraph-dev
+        printf 'libigraph-runtime-deb: '
+        dpkg-query -W -f='${Version}\n' libigraph3t64
+        printf 'libhts-dev-deb: '
+        dpkg-query -W -f='${Version}\n' libhts-dev
+        printf 'libhts-runtime-deb: '
+        dpkg-query -W -f='${Version}\n' libhts3t64
+        printf 'libcurl-development-backend: '
+        dpkg-query -W -f='${binary:Package} ${Version}\n' libcurl4-gnutls-dev
     } > /opt/container-metadata/toolchain-versions.txt
+
+    /opt/container/validate-system-libs.sh \
+        > /opt/container-metadata/system-library-validation.txt 2>&1
 
     R_LIBS_SITE=/opt/R/site-library \
         /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/validate.R \
@@ -594,12 +875,22 @@ RSCRIPT
     export R_MAX_NUM_DLLS=1000
     export LANG=C.UTF-8
     export LC_ALL=C.UTF-8
+    /opt/container/validate-system-libs.sh
     /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/validate.R
 
 %help
     This amd64 image contains Ubuntu 24.04 LTS, R 4.6.0, Bioconductor
-    3.23, glmGamPoi 1.24.0, and the pinned spatial/single-cell R stack
-    requested for PMACS.
+    3.23, glmGamPoi 1.24.0, Rhtslib 3.8.0, scDblFinder 1.26.7,
+    system igraph 0.10.10, system HTSlib 1.19, and the complete pinned
+    spatial/single-cell R stack requested for PMACS.
+
+    Ubuntu 24.04 names the runtime packages libigraph3t64 and
+    libhts3t64; these provide the requested libigraph3 and libhts3
+    ABIs and the libigraph.so.3 and libhts.so.3 shared libraries.
+
+    Rhtslib contains a separate private HTSlib 1.18 library for R
+    packages. The system HTSlib 1.19 and Rhtslib HTSlib 1.18 have both
+    passed independent functional tests.
 
     Validate:
       singularity test --cleanenv IMAGE.sif

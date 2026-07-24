@@ -1,30 +1,32 @@
-name: Build and publish validated SIF
+name: Build and publish HTSlib igraph scDblFinder SIF
 
 "on":
   workflow_dispatch:
   push:
     branches:
-      - codex/singularity-r460
+      - codex/singularity-r460-htslib-igraph-scdblfinder
     paths:
-      - r460-spatial-singlecell-ubuntu24.def
-      - .github/workflows/build-sif.yml
+      - r460-spatial-singlecell-htslib-igraph-scdblfinder-ubuntu24.def
+      - README-htslib-igraph-scdblfinder.md
+      - EXPECTED_VERSIONS-htslib-igraph-scdblfinder.tsv
+      - .github/workflows/build-sif-htslib-igraph-scdblfinder.yml
 
 permissions:
   contents: write
 
 concurrency:
-  group: r460-sif-${{ github.ref }}
+  group: r460-htslib-igraph-scdblfinder-sif-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   APPTAINER_VERSION: 1.5.2
-  DEFINITION: r460-spatial-singlecell-ubuntu24.def
-  IMAGE: r460-spatial-singlecell-ubuntu24-amd64.sif
+  DEFINITION: r460-spatial-singlecell-htslib-igraph-scdblfinder-ubuntu24.def
+  IMAGE: r460-spatial-singlecell-htslib-igraph-scdblfinder-ubuntu24-amd64.sif
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 350
+    timeout-minutes: 420
 
     steps:
       - name: Check out build inputs
@@ -81,7 +83,13 @@ jobs:
           sudo rm -rf "$RUNNER_TEMP/apptainer-cache" "$RUNNER_TEMP/apptainer-tmp"
           mkdir -p dist
           sha256sum "$IMAGE" > "dist/$IMAGE.sha256"
-          cp "$DEFINITION" validation.log image-inspect.txt README.md dist/
+          cp \
+            "$DEFINITION" \
+            validation.log \
+            image-inspect.txt \
+            README-htslib-igraph-scdblfinder.md \
+            EXPECTED_VERSIONS-htslib-igraph-scdblfinder.tsv \
+            dist/
 
           release_limit=$((1900 * 1024 * 1024))
           if (( $(stat -c %s "$IMAGE") <= release_limit )); then
@@ -102,8 +110,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="r4.6.0-seurat5.5.0-build-${GITHUB_RUN_NUMBER}"
+          tag="r460-rhtslib380-scdblfinder1267-htslib119-igraph01010-build-${GITHUB_RUN_NUMBER}-attempt-${GITHUB_RUN_ATTEMPT}"
           gh release create "$tag" dist/* \
             --target "$GITHUB_SHA" \
             --title "$tag" \
-            --notes "Validated amd64 Apptainer/Singularity image. If the SIF is split, download every part, concatenate them in lexical order, and verify the full-image SHA-256 file."
+            --notes "Validated CPU-only amd64 Apptainer/Singularity image with the complete prior R 4.6.0/Bioconductor 3.23 spatial and single-cell stack plus system HTSlib 1.19, system igraph 0.10.10, Rhtslib 3.8.0, and scDblFinder 1.26.7. If the SIF is split, download every part, concatenate them in lexical order, and verify the full-image SHA-256 file."

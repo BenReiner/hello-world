@@ -16,7 +16,7 @@ fi
 
 scratch_root="${TMPDIR:-${TMP:-/tmp}}"
 job_id="${LSB_JOBID:-interactive}"
-container_tmp="$scratch_root/r460-singularity-$job_id"
+container_tmp="$scratch_root/r460-htslib-igraph-scdblfinder-$job_id"
 mkdir -p "$container_tmp"
 
 export SINGULARITYENV_TMPDIR="$container_tmp"

@@ -1,0 +1,32 @@
+component	version
+ubuntu	24.04 LTS
+r	4.6.0
+cran_snapshot	2026-06-01
+bioconductor	3.23
+system_igraph	0.10.10
+libigraph-dev	0.10.10+ds-1.1build2
+libigraph_runtime_package	libigraph3t64 0.10.10+ds-1.1build2
+libigraph_runtime_abi	libigraph3 / libigraph.so.3
+system_htslib	1.19
+libhts-dev	1.19+ds-1.1build3
+libhts_runtime_package	libhts3t64 1.19+ds-1.1build3
+libhts_runtime_abi	libhts3 / libhts.so.3
+libcurl_development_backend	libcurl4-gnutls-dev
+Rhtslib	3.8.0
+Rhtslib_bundled_htslib	1.18
+Rhtslib_source_sha256	e89153bbac580adc2e988a095ce39c26e28cdf23b9a337988d18f66bc3b1eded
+scDblFinder	1.26.7
+scDblFinder_source_sha256	429b753d97cceac442e9435a773732f8c068eed45518b6ce75b6f944d9aee059
+glmGamPoi	1.24.0
+glmGamPoi_source_sha256	faf17f91e8e84a6cb455c7588df352f24da2f5a07e7d4ab8a3b654889a1e7492
+tidyverse	2.0.0
+sf	1.1-1
+arrow	24.0.0
+hdf5r	1.3.12
+ggplot2	4.0.3
+Seurat	5.5.0
+SeuratObject	5.4.0
+sp	2.2-1
+dplyr	1.2.1
+future	1.70.0
+igraph_r_package	2.3.2
