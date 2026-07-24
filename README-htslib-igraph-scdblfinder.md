@@ -185,6 +185,9 @@ It additionally validates:
 - igraph and HTSlib headers and `pkg-config` metadata;
 - compilation, linkage, and execution of small C programs against
   `libigraph.so.3`, `libhts.so.3`, and the static `libhts.a`;
+- static HTSlib linkage with the image's GCC 12 using Noble's native fat
+  object payload (`-fno-lto`, because Noble generated its optional LTO
+  metadata with GCC 13);
 - absence of unresolved shared-library dependencies;
 - R `igraph` graph construction and connectivity;
 - `Rhtslib` 3.8.0 and private HTSlib 1.18 files/version;

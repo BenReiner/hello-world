@@ -492,11 +492,12 @@ CSOURCE
     static_deps=
     for token in $(pkg-config --static --libs htslib)
     do
-        if test "$token" != '-lhts'; then
-            static_deps="$static_deps $token"
-        fi
+        case "$token" in
+            -lhts|*flto*) ;;
+            *) static_deps="$static_deps $token" ;;
+        esac
     done
-    gcc-12 -O2 -pipe \
+    gcc-12 -O2 -pipe -fno-lto \
         "$test_dir/htslib-smoke.c" \
         "$static_htslib" \
         $static_deps \
