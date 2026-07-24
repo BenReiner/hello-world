@@ -72,6 +72,7 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         libharfbuzz-dev \
         libhdf5-dev \
         libhts3t64=1.19+ds-1.1build3 \
+        libhtscodecs-dev=1.6.0-1build1 \
         libicu-dev \
         libicu74 \
         libigraph-dev=0.10.10+ds-1.1build2 \
@@ -173,6 +174,8 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
         = '1.19+ds-1.1build3+codex1'
     test "$(dpkg-query -W -f='${Version}' libhts3t64)" \
         = '1.19+ds-1.1build3'
+    test "$(dpkg-query -W -f='${Version}' libhtscodecs-dev)" \
+        = '1.6.0-1build1'
     dpkg-query -W -f='${Status}\n' libcurl4-openssl-dev \
         | grep -Fx 'install ok installed'
     test -z "$(dpkg --audit)"
@@ -412,6 +415,7 @@ RSCRIPT
     require_package_version libigraph3t64 '0.10.10+ds-1.1build2'
     require_package_version libhts-dev '1.19+ds-1.1build3+codex1'
     require_package_version libhts3t64 '1.19+ds-1.1build3'
+    require_package_version libhtscodecs-dev '1.6.0-1build1'
     test -z "$(dpkg --audit)"
 
     for package in \
@@ -482,9 +486,32 @@ CSOURCE
         exit 1
     fi
 
+    static_htslib="$(pkg-config --variable=libdir htslib)/libhts.a"
+    test -f "$static_htslib"
+    pkg-config --static --libs htslib | grep -F -- '-lhtscodecs' >/dev/null
+    static_deps=
+    for token in $(pkg-config --static --libs htslib)
+    do
+        if test "$token" != '-lhts'; then
+            static_deps="$static_deps $token"
+        fi
+    done
+    gcc-12 -O2 -pipe \
+        "$test_dir/htslib-smoke.c" \
+        "$static_htslib" \
+        $static_deps \
+        -o "$test_dir/htslib-static-smoke"
+    "$test_dir/htslib-static-smoke"
+    if ldd "$test_dir/htslib-static-smoke" | grep -F 'libhts.so'; then
+        exit 1
+    fi
+    if ldd "$test_dir/htslib-static-smoke" | grep -F 'not found'; then
+        exit 1
+    fi
+
     printf '%s\n' \
         'System igraph 0.10.10 compile/link/runtime check passed.' \
-        'System HTSlib 1.19 compile/link/runtime check passed.'
+        'System HTSlib 1.19 dynamic and static compile/link/runtime checks passed.'
 SHELLSCRIPT
 
     cat > /opt/container/validate.R <<'RSCRIPT'
@@ -830,7 +857,7 @@ RSCRIPT
             'cat(utils::packageDescription("Rhtslib", fields="Version"), "\n")'
         printf 'Rhtslib-bundled-htslib: '
         Rscript --vanilla -e \
-            'cat(.Call("Rhtslib_htslib_version", PACKAGE="Rhtslib"), "\n")'
+            'loadNamespace("Rhtslib"); cat(.Call("Rhtslib_htslib_version", PACKAGE="Rhtslib"), "\n")'
         printf 'scDblFinder: '
         Rscript --vanilla -e \
             'cat(utils::packageDescription("scDblFinder", fields="Version"), "\n")'
@@ -871,6 +898,8 @@ RSCRIPT
         dpkg-query -W -f='${Version}\n' libhts-dev
         printf 'libhts-runtime-deb: '
         dpkg-query -W -f='${Version}\n' libhts3t64
+        printf 'libhtscodecs-dev-deb: '
+        dpkg-query -W -f='${Version}\n' libhtscodecs-dev
         printf 'libcurl-development-backend: '
         dpkg-query -W -f='${binary:Package} ${Version}\n' libcurl4-openssl-dev
     } > /opt/container-metadata/toolchain-versions.txt

@@ -25,6 +25,7 @@ included.
 | Bioconductor | 3.23, the release for R 4.6 |
 | System igraph | 0.10.10 (`libigraph-dev` and `libigraph3t64`) |
 | System HTSlib | 1.19 (`libhts-dev` local compatible repack and official `libhts3t64`) |
+| HTS codecs development library | 1.6.0 (`libhtscodecs-dev`) |
 | Rhtslib | 3.8.0, source tarball pinned by SHA-256 |
 | Rhtslib private HTSlib | 1.18 |
 | scDblFinder | 1.26.7, source tarball pinned by SHA-256 |
@@ -68,8 +69,10 @@ dependency is changed to `libcurl4-openssl-dev`.
 
 The official `libhts3t64` runtime package remains unmodified. Its
 GnuTLS-flavored libcurl runtime can coexist with Arrow's OpenSSL-flavored
-runtime. `dpkg --audit`, compilation/link tests, R's libcurl capability,
-and every prior analytical package are all retested.
+runtime. `libhtscodecs-dev` is included so the HTSlib static archive has a
+complete development link path. `dpkg --audit`, dynamic and static
+compilation/link tests, R's libcurl capability, and every prior analytical
+package are all retested.
 
 ## Two intentional HTSlib installations
 
@@ -180,8 +183,8 @@ It additionally validates:
 - exact system igraph and HTSlib Debian package versions;
 - requested `libigraph3` and `libhts3` ABI providers;
 - igraph and HTSlib headers and `pkg-config` metadata;
-- compilation, dynamic linkage, and execution of small C programs against
-  `libigraph.so.3` and `libhts.so.3`;
+- compilation, linkage, and execution of small C programs against
+  `libigraph.so.3`, `libhts.so.3`, and the static `libhts.a`;
 - absence of unresolved shared-library dependencies;
 - R `igraph` graph construction and connectivity;
 - `Rhtslib` 3.8.0 and private HTSlib 1.18 files/version;

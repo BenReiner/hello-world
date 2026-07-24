@@ -12,6 +12,7 @@ libhts-dev	1.19+ds-1.1build3+codex1
 libhts-dev_original_deb_sha256	71ec76872312d83494f0f5b53ae40eb79579c4972790c1cec74e08aa0345851f
 libhts_runtime_package	libhts3t64 1.19+ds-1.1build3
 libhts_runtime_abi	libhts3 / libhts.so.3
+libhtscodecs-dev	1.6.0-1build1
 libcurl_development_backend	libcurl4-openssl-dev
 Rhtslib	3.8.0
 Rhtslib_bundled_htslib	1.18

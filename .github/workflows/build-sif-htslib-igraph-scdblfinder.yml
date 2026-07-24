@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: r460-htslib-igraph-scdblfinder-sif-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   APPTAINER_VERSION: 1.5.2
