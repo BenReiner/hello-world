@@ -1,0 +1,614 @@
+Bootstrap: docker
+From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
+
+%labels
+    org.opencontainers.image.title "R spatial, single-cell, and Gamma-Poisson analysis"
+    org.opencontainers.image.description "Ubuntu 24.04 LTS, R 4.6.0, Seurat 5.5.0, glmGamPoi 1.24.0, Arrow 24.0.0, and pinned dependencies"
+    org.opencontainers.image.version "r4.6.0-seurat5.5.0-glmGamPoi1.24.0"
+    org.opencontainers.image.base.name "docker.io/library/ubuntu:24.04"
+    org.opencontainers.image.base.digest "sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+    org.opencontainers.image.architecture "amd64"
+    org.r-project.version "4.6.0"
+    org.r-project.cran-snapshot "2026-06-01"
+    org.bioconductor.version "3.23"
+    org.bioconductor.glmGamPoi.version "1.24.0"
+
+%post
+    set -eu
+
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Etc/UTC
+
+    apt-get update
+    apt-get install -y --no-install-recommends ca-certificates curl
+
+    curl -fL --retry 5 --retry-delay 5 \
+        -o /tmp/apache-arrow-apt-source_24.0.0-1_all.deb \
+        https://packages.apache.org/artifactory/arrow/ubuntu/pool/noble/main/a/apache-arrow-apt-source/apache-arrow-apt-source_24.0.0-1_all.deb
+    printf '%s  %s\n' \
+        'e95437b98562d18bdf56ce87eed4d8a465ca8aeb5bd15800e1ffa430f6f139ac' \
+        '/tmp/apache-arrow-apt-source_24.0.0-1_all.deb' | sha256sum -c -
+    apt-get install -y --no-install-recommends \
+        /tmp/apache-arrow-apt-source_24.0.0-1_all.deb
+    printf '%s\n' \
+        'Package: libarrow* libparquet*' \
+        'Pin: version 24.0.0-1' \
+        'Pin-Priority: 1001' \
+        > /etc/apt/preferences.d/apache-arrow-24
+    apt-get update
+
+    apt-get install -y --no-install-recommends \
+        autoconf \
+        automake \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        file \
+        g++-12 \
+        gcc-12 \
+        gfortran-13 \
+        git \
+        libblas-dev \
+        libbz2-dev \
+        libcairo2-dev \
+        libcurl4-openssl-dev \
+        libfftw3-dev \
+        libfontconfig1-dev \
+        libfreetype-dev \
+        libfribidi-dev \
+        libgdal-dev \
+        libgeos-dev \
+        libgfortran-13-dev \
+        libgit2-dev \
+        libglpk-dev \
+        libgmp-dev \
+        libgsl-dev \
+        libharfbuzz-dev \
+        libhdf5-dev \
+        libicu-dev \
+        libicu74 \
+        libjpeg-dev \
+        liblapack-dev \
+        liblzma-dev \
+        libnghttp2-dev \
+        libpango1.0-dev \
+        libpcre2-dev \
+        libpng-dev \
+        libproj-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libssl-dev \
+        libtiff-dev \
+        libtool \
+        libudunits2-dev \
+        libuv1-dev \
+        libx11-dev \
+        libxml2-dev \
+        libxt-dev \
+        libarrow-dev=24.0.0-1 \
+        libarrow-dataset-dev=24.0.0-1 \
+        libarrow-acero-dev=24.0.0-1 \
+        libarrow-flight-dev=24.0.0-1 \
+        libparquet-dev=24.0.0-1 \
+        make \
+        ninja-build \
+        pkg-config \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+        python-is-python3 \
+        unzip \
+        wget \
+        xz-utils \
+        zip \
+        zlib1g-dev \
+        gdal-bin
+
+    for package in \
+        libarrow-dev \
+        libarrow-dataset-dev \
+        libarrow-acero-dev \
+        libarrow-flight-dev \
+        libparquet-dev
+    do
+        test "$(dpkg-query -W -f='${Version}' "$package")" = '24.0.0-1'
+    done
+
+    mkdir -p \
+        /opt/src \
+        /opt/R/4.6.0 \
+        /opt/R/site-library \
+        /opt/container \
+        /opt/container-metadata/arrow-build-logs
+
+    cd /opt/src
+    curl -fL --retry 5 --retry-delay 5 \
+        -o R-4.6.0.tar.xz \
+        https://cran.r-project.org/src/base/R-4/R-4.6.0.tar.xz
+    printf '%s  %s\n' \
+        '91f2b3693fa5252cdea9b62abc84a1c58db5547cb9f0fe3d15f44eef8aff5a27' \
+        'R-4.6.0.tar.xz' | sha256sum -c -
+    tar -xf R-4.6.0.tar.xz
+
+    curl -fL --retry 5 --retry-delay 5 \
+        -o glmGamPoi_1.24.0.tar.gz \
+        https://bioconductor.org/packages/3.23/bioc/src/contrib/glmGamPoi_1.24.0.tar.gz
+    printf '%s  %s\n' \
+        'faf17f91e8e84a6cb455c7588df352f24da2f5a07e7d4ab8a3b654889a1e7492' \
+        'glmGamPoi_1.24.0.tar.gz' | tee \
+        /opt/container-metadata/glmGamPoi-source.sha256 | sha256sum -c -
+
+    cd /opt/src/R-4.6.0
+    CC=gcc-12 \
+    CXX=g++-12 \
+    CXX11=g++-12 \
+    CXX14=g++-12 \
+    CXX17=g++-12 \
+    CXX20=g++-12 \
+    FC=gfortran-13 \
+    F77=gfortran-13 \
+    CFLAGS='-O2 -pipe' \
+    CXXFLAGS='-O2 -pipe' \
+    FCFLAGS='-O2 -pipe' \
+    FFLAGS='-O2 -pipe' \
+        /bin/bash ./configure \
+            --prefix=/opt/R/4.6.0 \
+            --enable-R-shlib \
+            --with-blas \
+            --with-lapack \
+            --with-x
+    make -j2
+    make install
+
+    ln -sf /opt/R/4.6.0/bin/R /usr/local/bin/R
+    ln -sf /opt/R/4.6.0/bin/Rscript /usr/local/bin/Rscript
+
+    cat > /opt/container/install-r-packages.R <<'RSCRIPT'
+    cran_repo <- "https://packagemanager.posit.co/cran/2026-06-01"
+    options(
+      repos = c(CRAN = cran_repo),
+      timeout = 1800,
+      Ncpus = 2L,
+      warn = 1
+    )
+
+    lib <- "/opt/R/site-library"
+    dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+    .libPaths(c(lib, .libPaths()))
+
+    non_arrow <- c(
+      "tidyverse",
+      "future",
+      "sp",
+      "dplyr",
+      "ggplot2",
+      "SeuratObject",
+      "Seurat",
+      "hdf5r",
+      "sf",
+      "BiocManager"
+    )
+
+    install.packages(
+      non_arrow,
+      lib = lib,
+      type = "source",
+      dependencies = NA,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
+    Sys.setenv(
+      LIBARROW_BINARY = "false",
+      LIBARROW_BUILD = "false",
+      ARROW_USE_PKG_CONFIG = "true",
+      ARROW_R_DEV = "true",
+      PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig",
+      CMAKE_BUILD_PARALLEL_LEVEL = "2",
+      MAKEFLAGS = "-j2"
+    )
+
+    install.packages(
+      "arrow",
+      lib = lib,
+      type = "source",
+      dependencies = NA,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
+    bioc_repos <- BiocManager::repositories(version = "3.23")
+    bioc_repos[["CRAN"]] <- cran_repo
+    options(repos = bioc_repos)
+
+    BiocManager::install(
+      "glmGamPoi",
+      lib = lib,
+      version = "3.23",
+      ask = FALSE,
+      update = FALSE,
+      dependencies = NA,
+      type = "source",
+      Ncpus = 2L,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
+    install.packages(
+      "/opt/src/glmGamPoi_1.24.0.tar.gz",
+      lib = lib,
+      repos = NULL,
+      type = "source",
+      dependencies = FALSE,
+      INSTALL_opts = c("--no-multiarch", "--clean")
+    )
+
+    expected <- c(
+      tidyverse = "2.0.0",
+      sf = "1.1-1",
+      arrow = "24.0.0",
+      hdf5r = "1.3.12",
+      ggplot2 = "4.0.3",
+      Seurat = "5.5.0",
+      SeuratObject = "5.4.0",
+      sp = "2.2-1",
+      dplyr = "1.2.1",
+      future = "1.70.0",
+      glmGamPoi = "1.24.0"
+    )
+
+    stopifnot(
+      as.character(getRversion()) == "4.6.0",
+      as.character(BiocManager::version()) == "3.23"
+    )
+    actual <- vapply(names(expected), function(pkg) {
+      as.character(utils::packageDescription(
+        pkg,
+        lib.loc = lib,
+        fields = "Version"
+      ))
+    }, character(1))
+
+    if (!identical(unname(actual), unname(expected))) {
+      print(data.frame(package = names(expected), expected, actual))
+      stop("Top-level R package version gate failed")
+    }
+
+    installed <- as.data.frame(installed.packages(), stringsAsFactors = FALSE)
+    installed <- installed[order(installed$Package), , drop = FALSE]
+    write.table(
+      installed,
+      file = "/opt/container-metadata/r-packages.tsv",
+      sep = "\t",
+      quote = FALSE,
+      row.names = FALSE
+    )
+    writeLines(
+      c(
+        paste("Bioconductor", as.character(BiocManager::version())),
+        paste(names(bioc_repos), unname(bioc_repos), sep = "\t")
+      ),
+      "/opt/container-metadata/bioconductor-repositories.txt"
+    )
+    capture.output(sessionInfo(), file = "/opt/container-metadata/r-session-info.txt")
+RSCRIPT
+
+    export PATH=/opt/R/4.6.0/bin:/usr/local/bin:/usr/bin:/bin
+    export R_HOME=/opt/R/4.6.0/lib/R
+    export R_LIBS_SITE=/opt/R/site-library
+    export R_LIBS_USER=
+    export MAKEFLAGS=-j2
+    /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/install-r-packages.R
+
+    cat > /opt/container/validate.R <<'RSCRIPT'
+    options(warn = 1)
+    .libPaths(c("/opt/R/site-library", .libPaths()))
+
+    expected <- c(
+      tidyverse = "2.0.0",
+      sf = "1.1-1",
+      arrow = "24.0.0",
+      hdf5r = "1.3.12",
+      ggplot2 = "4.0.3",
+      Seurat = "5.5.0",
+      SeuratObject = "5.4.0",
+      sp = "2.2-1",
+      dplyr = "1.2.1",
+      future = "1.70.0",
+      glmGamPoi = "1.24.0"
+    )
+
+    stopifnot(
+      as.character(getRversion()) == "4.6.0",
+      as.character(BiocManager::version()) == "3.23"
+    )
+    actual <- vapply(names(expected), function(pkg) {
+      as.character(utils::packageDescription(pkg, fields = "Version"))
+    }, character(1))
+    stopifnot(identical(unname(actual), unname(expected)))
+
+    suppressPackageStartupMessages({
+      library(sf)
+      library(arrow)
+      library(hdf5r)
+      library(ggplot2)
+      library(Seurat)
+      library(future)
+      library(dplyr)
+      library(glmGamPoi)
+      library(Matrix)
+      library(HDF5Array)
+    })
+
+    point <- sf::st_sfc(sf::st_point(c(-75, 40)), crs = 4326)
+    projected <- sf::st_transform(point, 3857)
+    stopifnot(all(is.finite(sf::st_coordinates(projected))))
+
+    parquet_file <- tempfile(fileext = ".parquet")
+    arrow::write_parquet(
+      data.frame(group = c("a", "a", "b"), value = 1:3),
+      parquet_file
+    )
+    parquet_roundtrip <- as.data.frame(arrow::read_parquet(parquet_file))
+    stopifnot(nrow(parquet_roundtrip) == 3L, sum(parquet_roundtrip$value) == 6)
+    dataset_result <- arrow::open_dataset(parquet_file) |>
+      dplyr::group_by(group) |>
+      dplyr::summarise(total = sum(value)) |>
+      dplyr::collect()
+    stopifnot(sum(dataset_result$total) == 6)
+    unlink(parquet_file)
+
+    h5_file <- tempfile(fileext = ".h5")
+    h5 <- hdf5r::H5File$new(h5_file, mode = "w")
+    h5[["values"]] <- as.integer(1:5)
+    h5_values <- h5[["values"]][]
+    h5$close_all()
+    stopifnot(identical(as.integer(h5_values), 1:5))
+    unlink(h5_file)
+
+    plot_file <- tempfile(fileext = ".png")
+    plot_object <- ggplot2::ggplot(
+      data.frame(x = 1:3, y = c(1, 4, 2)),
+      ggplot2::aes(x, y)
+    ) + ggplot2::geom_line()
+    ggplot2::ggsave(plot_file, plot_object, width = 4, height = 3, dpi = 72)
+    stopifnot(file.exists(plot_file), file.info(plot_file)$size > 0)
+    unlink(plot_file)
+
+    set.seed(1)
+    counts <- matrix(stats::rpois(40 * 20, lambda = 5), nrow = 40, ncol = 20)
+    rownames(counts) <- sprintf("gene_%02d", seq_len(nrow(counts)))
+    colnames(counts) <- sprintf("cell_%02d", seq_len(ncol(counts)))
+    object <- Seurat::CreateSeuratObject(counts = counts)
+    object <- Seurat::NormalizeData(object, verbose = FALSE)
+    object <- Seurat::FindVariableFeatures(object, nfeatures = 20, verbose = FALSE)
+    object <- Seurat::ScaleData(
+      object,
+      features = Seurat::VariableFeatures(object),
+      verbose = FALSE
+    )
+    object <- Seurat::RunPCA(
+      object,
+      features = Seurat::VariableFeatures(object),
+      npcs = 5,
+      verbose = FALSE
+    )
+    stopifnot(ncol(Seurat::Embeddings(object, reduction = "pca")) == 5L)
+
+    previous_plan <- future::plan(future::sequential)
+    result <- future::value(future::future(40 + 2))
+    future::plan(previous_plan)
+    stopifnot(identical(result, 42))
+
+    set.seed(20260724)
+    condition <- factor(rep(c("control", "treated"), each = 20))
+    mu <- outer(
+      seq(0.8, 12, length.out = 48),
+      ifelse(condition == "treated", 1.8, 1)
+    )
+    gp_counts <- matrix(
+      stats::rnbinom(length(mu), mu = as.vector(mu), size = 4),
+      nrow = nrow(mu)
+    )
+    zero_rows <- which(rowSums(gp_counts) == 0)
+    if (length(zero_rows)) {
+      gp_counts[cbind(zero_rows, rep(1L, length(zero_rows)))] <- 1L
+    }
+    design <- stats::model.matrix(~ condition)
+
+    fit_dense <- glmGamPoi::glm_gp(
+      gp_counts,
+      design = design,
+      size_factors = FALSE,
+      overdispersion_shrinkage = FALSE,
+      on_disk = FALSE
+    )
+
+    gp_counts_sparse <- methods::as(
+      Matrix::Matrix(gp_counts, sparse = TRUE),
+      "dgCMatrix"
+    )
+    fit_sparse <- glmGamPoi::glm_gp(
+      gp_counts_sparse,
+      design = design,
+      size_factors = FALSE,
+      overdispersion_shrinkage = FALSE,
+      on_disk = FALSE
+    )
+
+    gp_h5_file <- tempfile(fileext = ".h5")
+    gp_counts_h5 <- HDF5Array::writeHDF5Array(
+      gp_counts,
+      filepath = gp_h5_file,
+      name = "counts"
+    )
+    fit_disk <- glmGamPoi::glm_gp(
+      gp_counts_h5,
+      design = design,
+      size_factors = FALSE,
+      overdispersion_shrinkage = FALSE,
+      on_disk = TRUE
+    )
+
+    check_gp_fit <- function(x) {
+      stopifnot(
+        inherits(x, "glmGamPoi") || inherits(x, "glmGamPoiFit"),
+        identical(dim(x$Beta), c(nrow(gp_counts), ncol(design))),
+        identical(dim(x$Mu), dim(gp_counts)),
+        all(is.finite(x$Beta)),
+        all(is.finite(x$overdispersions)),
+        all(x$overdispersions >= 0)
+      )
+    }
+    invisible(lapply(list(fit_dense, fit_sparse, fit_disk), check_gp_fit))
+    stopifnot(
+      inherits(fit_disk$Mu, "HDF5Matrix"),
+      isTRUE(all.equal(
+        fit_dense$Beta,
+        fit_sparse$Beta,
+        tolerance = 1e-6,
+        check.attributes = FALSE
+      )),
+      isTRUE(all.equal(
+        fit_dense$Beta,
+        fit_disk$Beta,
+        tolerance = 1e-6,
+        check.attributes = FALSE
+      ))
+    )
+    unlink(gp_h5_file)
+
+    set.seed(20260724)
+    sct_mu <- outer(seq(0.5, 18, length.out = 300), rep(1, 80))
+    sct_counts <- matrix(
+      stats::rnbinom(length(sct_mu), mu = as.vector(sct_mu), size = 5),
+      nrow = nrow(sct_mu)
+    )
+    rownames(sct_counts) <- sprintf("sct_gene_%03d", seq_len(nrow(sct_counts)))
+    colnames(sct_counts) <- sprintf("sct_cell_%03d", seq_len(ncol(sct_counts)))
+    sct_zero_rows <- which(rowSums(sct_counts) == 0)
+    if (length(sct_zero_rows)) {
+      sct_counts[cbind(
+        sct_zero_rows,
+        rep(1L, length(sct_zero_rows))
+      )] <- 1L
+    }
+    vst_fit <- sctransform::vst(
+      sct_counts,
+      method = "glmGamPoi",
+      n_genes = 200,
+      n_cells = 80,
+      verbosity = 0
+    )
+    stopifnot(
+      is.list(vst_fit),
+      identical(vst_fit$arguments$method, "glmGamPoi"),
+      nrow(vst_fit$y) > 0,
+      ncol(vst_fit$y) == 80
+    )
+
+    cat("Validated OS:\n")
+    cat(readLines("/etc/os-release"), sep = "\n")
+    cat("\nValidated R, Bioconductor, and top-level package versions:\n")
+    cat("Bioconductor:", as.character(BiocManager::version()), "\n")
+    print(data.frame(package = names(expected), version = actual), row.names = FALSE)
+    cat("\nsf external libraries:\n")
+    print(sf::sf_extSoftVersion())
+    cat("\nHDF5 version:\n")
+    print(hdf5r::h5version())
+    cat("\nArrow build information:\n")
+    print(arrow::arrow_info())
+    cat("\nglmGamPoi dense, sparse, HDF5-backed, and sctransform checks passed.\n")
+    cat("\nAll container validation checks passed.\n")
+RSCRIPT
+
+    chmod 0555 /opt/container/install-r-packages.R /opt/container/validate.R
+
+    dpkg-query -W -f='${binary:Package}\t${Version}\n' | sort \
+        > /opt/container-metadata/debian-packages.tsv
+    {
+        printf 'R: '
+        /opt/R/4.6.0/bin/R --version | head -n 1
+        printf 'Bioconductor: '
+        Rscript --vanilla -e 'cat(as.character(BiocManager::version()), "\n")'
+        printf 'glmGamPoi: '
+        Rscript --vanilla -e \
+            'cat(utils::packageDescription("glmGamPoi", fields="Version"), "\n")'
+        printf 'gcc: '
+        gcc-12 --version | head -n 1
+        printf 'g++: '
+        g++-12 --version | head -n 1
+        printf 'gfortran: '
+        gfortran-13 --version | head -n 1
+        printf 'python: '
+        python3 --version
+        printf 'fftw: '
+        pkg-config --modversion fftw3
+        printf 'hdf5: '
+        pkg-config --modversion hdf5
+        printf 'arrow-cpp: '
+        pkg-config --modversion arrow
+        printf 'parquet-cpp: '
+        pkg-config --modversion parquet
+        printf 'gdal: '
+        gdal-config --version
+        printf 'geos: '
+        geos-config --version
+        printf 'proj: '
+        pkg-config --modversion proj
+    } > /opt/container-metadata/toolchain-versions.txt
+
+    R_LIBS_SITE=/opt/R/site-library \
+        /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/validate.R \
+        > /opt/container-metadata/build-validation.txt 2>&1
+
+    apt-get clean
+    find /var/lib/apt/lists -type f -delete
+    find /opt/src -mindepth 1 -delete
+
+%environment
+    export PATH=/opt/R/4.6.0/bin:/usr/local/bin:/usr/bin:/bin
+    export R_HOME=/opt/R/4.6.0/lib/R
+    export R_LIBS_SITE=/opt/R/site-library
+    export R_LIBS_USER=
+    export R_ENVIRON_USER=/dev/null
+    export R_PROFILE_USER=/dev/null
+    export R_MAX_NUM_DLLS=1000
+    export PYTHONNOUSERSITE=1
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+    export CC=gcc-12
+    export CXX=g++-12
+    export FC=gfortran-13
+    export F77=gfortran-13
+
+%runscript
+    exec /opt/R/4.6.0/bin/R "$@"
+
+%test
+    set -eu
+    export R_HOME=/opt/R/4.6.0/lib/R
+    export R_LIBS_SITE=/opt/R/site-library
+    export R_LIBS_USER=
+    export R_ENVIRON_USER=/dev/null
+    export R_PROFILE_USER=/dev/null
+    export R_MAX_NUM_DLLS=1000
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+    /opt/R/4.6.0/bin/Rscript --vanilla /opt/container/validate.R
+
+%help
+    This amd64 image contains Ubuntu 24.04 LTS, R 4.6.0, Bioconductor
+    3.23, glmGamPoi 1.24.0, and the pinned spatial/single-cell R stack
+    requested for PMACS.
+
+    Validate:
+      singularity test --cleanenv IMAGE.sif
+
+    Run an R script:
+      singularity exec --cleanenv IMAGE.sif Rscript analysis.R
+
+    Start R:
+      singularity run --cleanenv IMAGE.sif
+
+    The PMACS host only needs its Singularity module. Do not load host R,
+    GCC, HDF5, Python, or FFTW modules with this self-contained image.
