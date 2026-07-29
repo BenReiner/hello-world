@@ -307,7 +307,11 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
     stopifnot(as.character(BiocManager::version()) == bioc_version)
 
     actual_exact <- vapply(names(expected_exact), function(pkg) {
-      as.character(utils::packageVersion(pkg, lib.loc = lib))
+      as.character(utils::packageDescription(
+        pkg,
+        lib.loc = lib,
+        fields = "Version"
+      ))
     }, character(1))
 
     if (!identical(unname(actual_exact), unname(expected_exact))) {
@@ -320,7 +324,11 @@ From: ubuntu@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc709
     }
 
     actual_bioc <- vapply(names(expected_bioc), function(pkg) {
-      as.character(utils::packageVersion(pkg, lib.loc = lib))
+      as.character(utils::packageDescription(
+        pkg,
+        lib.loc = lib,
+        fields = "Version"
+      ))
     }, character(1))
 
     if (!identical(unname(actual_bioc), unname(expected_bioc))) {
@@ -385,12 +393,12 @@ RSCRIPT
     stopifnot(as.character(BiocManager::version()) == "3.23")
 
     actual_exact <- vapply(names(expected_exact), function(pkg) {
-      as.character(utils::packageVersion(pkg))
+      as.character(utils::packageDescription(pkg, fields = "Version"))
     }, character(1))
     stopifnot(identical(unname(actual_exact), unname(expected_exact)))
 
     actual_bioc <- vapply(names(expected_bioc), function(pkg) {
-      as.character(utils::packageVersion(pkg))
+      as.character(utils::packageDescription(pkg, fields = "Version"))
     }, character(1))
     stopifnot(identical(unname(actual_bioc), unname(expected_bioc)))
 
