@@ -4,7 +4,8 @@ This project builds a self-contained, CPU-only, amd64
 Singularity/Apptainer image for PMACS. It preserves the previously validated
 Ubuntu 24.04, R 4.6.0, Seurat, Arrow, spatial, `glmGamPoi`, HTSlib, igraph,
 `Rhtslib`, and `scDblFinder` stack and adds `scCustomize`, Cairo, and all hard
-dependencies.
+dependencies. Both `python3` and the compatibility command `python` invoke the
+container's Python 3 interpreter.
 
 The system HTSlib 1.24 installation is compiled from the checksum-verified
 upstream source and provides `libhts.so.3`, headers, the static and unversioned

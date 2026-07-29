@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: r460-complete-sif-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   APPTAINER_VERSION: 1.5.2
@@ -26,7 +26,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 360
 
     steps:
       - name: Check out build inputs

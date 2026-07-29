@@ -6,6 +6,7 @@ bioconductor	3.23
 bioconductor_snapshot	2026-07-22
 system_igraph	0.10.10
 system_htslib	1.24
+python_command	python-is-python3
 BiocManager	1.30.27
 Cairo	1.7-0
 tidyverse	2.0.0
