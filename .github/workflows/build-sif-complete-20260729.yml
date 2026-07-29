@@ -1,0 +1,130 @@
+name: Build and publish complete R460 SIF
+
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/singularity-r460-complete-20260729
+    paths:
+      - r460-spatial-singlecell-ubuntu24-updated.def
+      - README-complete-20260729.md
+      - EXPECTED_VERSIONS-complete-20260729.tsv
+      - .github/workflows/build-sif-complete-20260729.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: r460-complete-sif-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APPTAINER_VERSION: 1.5.2
+  DEFINITION: r460-spatial-singlecell-ubuntu24-updated.def
+  IMAGE: r460-spatial-singlecell-ubuntu24-complete-amd64.sif
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+
+    steps:
+      - name: Check out build inputs
+        uses: actions/checkout@v4
+
+      - name: Report and prepare build disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h
+
+      - name: Install pinned Apptainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          curl -fL --retry 5 --retry-delay 5 \
+            -o "$RUNNER_TEMP/apptainer.deb" \
+            "https://github.com/apptainer/apptainer/releases/download/v${APPTAINER_VERSION}/apptainer_${APPTAINER_VERSION}_amd64.deb"
+          printf '%s  %s\n' \
+            'b5ea4ddbb7db2bfd396b4e64adaedb75d990fc7efd851189472899a1bd521d89' \
+            "$RUNNER_TEMP/apptainer.deb" | sha256sum -c -
+          sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
+          apptainer version | grep -F "$APPTAINER_VERSION"
+
+      - name: Build SIF as root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/apptainer-cache" "$RUNNER_TEMP/apptainer-tmp"
+          source_date_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          sudo env \
+            APPTAINER_CACHEDIR="$RUNNER_TEMP/apptainer-cache" \
+            APPTAINER_TMPDIR="$RUNNER_TEMP/apptainer-tmp" \
+            SOURCE_DATE_EPOCH="$source_date_epoch" \
+            apptainer build --force "$IMAGE" "$DEFINITION" |& tee build.log
+          sudo chown "$USER:$USER" "$IMAGE"
+          ls -lh "$IMAGE"
+
+      - name: Validate as an ordinary user
+        shell: bash
+        run: |
+          set -euo pipefail
+          apptainer test --cleanenv "$IMAGE" |& tee validation.log
+          apptainer inspect "$IMAGE" > image-inspect.txt
+          apptainer sif list "$IMAGE" >> image-inspect.txt
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf "$RUNNER_TEMP/apptainer-cache" "$RUNNER_TEMP/apptainer-tmp"
+          mkdir -p dist
+          sha256sum "$IMAGE" > "dist/$IMAGE.sha256"
+          cp \
+            "$DEFINITION" \
+            build.log \
+            validation.log \
+            image-inspect.txt \
+            README-complete-20260729.md \
+            EXPECTED_VERSIONS-complete-20260729.tsv \
+            dist/
+
+          release_limit=$((1900 * 1024 * 1024))
+          if (( $(stat -c %s "$IMAGE") <= release_limit )); then
+            mv "$IMAGE" dist/
+          else
+            split -b 1900M -d -a 3 "$IMAGE" "dist/$IMAGE.part-"
+            (
+              cd dist
+              sha256sum "$IMAGE".part-* > "$IMAGE.parts.sha256"
+            )
+          fi
+
+          ls -lh dist
+
+      - name: Publish immutable build release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="r460-complete-htslib124-scdblfinder1267-sccustomize330-build-${GITHUB_RUN_NUMBER}-attempt-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "$tag" \
+            --notes "Validated CPU-only amd64 Apptainer/Singularity image with Ubuntu 24.04, R 4.6.0, Bioconductor 3.23, Seurat 5.5.0, Arrow 24.0.0, system HTSlib 1.24, system igraph 0.10.10, glmGamPoi 1.24.0, Rhtslib 3.8.0, scDblFinder 1.26.7, scCustomize 3.3.0, Cairo 1.7-0, and their required dependencies. If the SIF is split, download every part, concatenate them in lexical order, and verify the full-image SHA-256 file."
+
+      - name: Preserve diagnostics if the build fails
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: r460-complete-build-diagnostics
+          path: |
+            build.log
+            validation.log
+            image-inspect.txt
+          if-no-files-found: ignore
+          retention-days: 7
